@@ -499,7 +499,8 @@ class EosTokenCriteria(StoppingCriteria):
                 .squeeze()
             )
         else:
-            is_done = torch.isin(input_ids[:, -1].cpu(), self.eos_token_id.cpu()).to(input_ids.device)
+            # is_done = torch.isin(input_ids[:, -1].cpu(), self.eos_token_id.cpu()).to(input_ids.device)
+            is_done = (input_ids[:, -1] == self.eos_token_id)
         return is_done
 
 
