@@ -3019,7 +3019,11 @@ class GenerationMixin:
                 # TODO (joao): this OP throws "skipping cudagraphs due to ['incompatible ops']", find solution
                 next_tokens = torch.multinomial(probs, num_samples=1).squeeze(1)
             else:
-                next_tokens = torch.argmax(next_token_scores, dim=-1)
+                # next_tokens = torch.argmax(next_token_scores, dim=-1)
+                # argmax only supports 1D
+                # topk only returns indices with int32
+                # cast doesn't support int32->int64
+                next_tokens = torch.topk(next_token_scores, k=1, dim=-1).indices.squeeze(-1).cpu().to(torch.long).to(next_token_scores.device)
 
             # finished sentences should have their next token be a padding token
             if has_eos_stopping_criteria:
