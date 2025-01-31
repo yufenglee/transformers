@@ -461,7 +461,7 @@ class TopPLogitsWarper(LogitsWarper):
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
-        sorted_logits, sorted_indices = torch.topk(scores, scores.size(-1), dim=-1)
+        sorted_logits, sorted_indices = torch.topk(scores, scores.size(-1), dim=-1, largest=False)
         cumulative_probs = sorted_logits.cpu().softmax(dim=-1).to(input_ids.device).cumsum(dim=-1)
 
         # Remove tokens with cumulative top_p above the threshold (token with 0 are kept)
