@@ -1556,24 +1556,24 @@ class GenerationMixin:
             raise ValueError(
                 "`decoder_start_token_id` or `bos_token_id` has to be defined for encoder-decoder generation."
             )
-        if not is_torchdynamo_compiling():  # Checks that depend on tensor-dependent control flow
-            if (
-                eos_token_tensor is not None
-                and torch.isin(elements=eos_token_tensor, test_elements=pad_token_tensor).any()
-            ):
-                if kwargs_has_attention_mask is not None and not kwargs_has_attention_mask:
-                    logger.warning_once(
-                        "The attention mask is not set and cannot be inferred from input because pad token is same as "
-                        "eos token. As a consequence, you may observe unexpected behavior. Please pass your input's "
-                        "`attention_mask` to obtain reliable results."
-                    )
-            if eos_token_tensor is not None and (
-                torch.is_floating_point(eos_token_tensor) or (eos_token_tensor < 0).any()
-            ):
-                logger.warning(
-                    f"`eos_token_id` should consist of positive integers, but is {eos_token_tensor}. Your generation "
-                    "will not stop until the maximum length is reached. Depending on other flags, it may even crash."
-                )
+        # if not is_torchdynamo_compiling():  # Checks that depend on tensor-dependent control flow
+        #     if (
+        #         eos_token_tensor is not None
+        #         and torch.isin(elements=eos_token_tensor, test_elements=pad_token_tensor).any()
+        #     ):
+        #         if kwargs_has_attention_mask is not None and not kwargs_has_attention_mask:
+        #             logger.warning_once(
+        #                 "The attention mask is not set and cannot be inferred from input because pad token is same as "
+        #                 "eos token. As a consequence, you may observe unexpected behavior. Please pass your input's "
+        #                 "`attention_mask` to obtain reliable results."
+        #             )
+        #     #if eos_token_tensor is not None and (
+        #     #    torch.is_floating_point(eos_token_tensor) or (eos_token_tensor < 0).any()
+        #     #):
+        #     #    logger.warning(
+        #     #        f"`eos_token_id` should consist of positive integers, but is {eos_token_tensor}. Your generation "
+        #     #        "will not stop until the maximum length is reached. Depending on other flags, it may even crash."
+        #     #    )
 
         # Update generation config with the updated special tokens tensors
         # NOTE: this must be written into a different attribute name than the one holding the original special tokens
@@ -3015,7 +3015,7 @@ class GenerationMixin:
 
             # token selection
             if do_sample:
-                probs = nn.functional.softmax(next_token_scores, dim=-1)
+                probs = nn.functional.softmax(next_token_scores.cpu(), dim=-1).to(next_token_scores.device)
                 # TODO (joao): this OP throws "skipping cudagraphs due to ['incompatible ops']", find solution
                 next_tokens = torch.multinomial(probs, num_samples=1).squeeze(1)
             else:
@@ -3035,7 +3035,8 @@ class GenerationMixin:
                 is_encoder_decoder=self.config.is_encoder_decoder,
             )
 
-            unfinished_sequences = unfinished_sequences & ~stopping_criteria(input_ids, scores)
+            unfinished_sequences = unfinished_sequences.cpu() & ~stopping_criteria(input_ids.cpu(), scores.cpu() if scores else scores)
+            unfinished_sequences = unfinished_sequences.to(input_ids.device)
             this_peer_finished = unfinished_sequences.max() == 0
             cur_len += 1
 

@@ -461,8 +461,10 @@ class TopPLogitsWarper(LogitsWarper):
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
-        sorted_logits, sorted_indices = torch.sort(scores, descending=False)
-        cumulative_probs = sorted_logits.softmax(dim=-1).cumsum(dim=-1)
+        sorted_logits, sorted_indices = torch.sort(scores.cpu(), descending=False)
+        sorted_logits = sorted_logits.to(input_ids.device)
+        sorted_indices = sorted_indices.to(input_ids.device)
+        cumulative_probs = sorted_logits.cpu().softmax(dim=-1).cumsum(dim=-1).to(input_ids.device)
 
         # Remove tokens with cumulative top_p above the threshold (token with 0 are kept)
         sorted_indices_to_remove = cumulative_probs <= (1 - self.top_p)
@@ -470,9 +472,10 @@ class TopPLogitsWarper(LogitsWarper):
         sorted_indices_to_remove[..., -self.min_tokens_to_keep :] = 0
 
         # scatter sorted tensors to original indexing
-        indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+        indices_to_remove = sorted_indices_to_remove.cpu().scatter(1, sorted_indices.cpu(), sorted_indices_to_remove.cpu()).to(sorted_indices_to_remove.device)
         scores_processed = scores.masked_fill(indices_to_remove, self.filter_value)
-        return scores_processed
+
+        return scores_processed.to(input_ids.device)
 
 
 class TopKLogitsWarper(LogitsWarper):

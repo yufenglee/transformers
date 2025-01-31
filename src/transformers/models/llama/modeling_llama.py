@@ -94,12 +94,12 @@ def _prepare_4d_causal_attention_mask_with_cache_position(
         causal_mask = torch.full((sequence_length, target_length), fill_value=min_dtype, dtype=dtype, device=device)
         if sequence_length != 1:
             causal_mask = torch.triu(causal_mask, diagonal=1)
-        causal_mask *= torch.arange(target_length, device=device) > cache_position.reshape(-1, 1)
+        causal_mask *= (torch.arange(target_length, device=device) > cache_position.reshape(-1, 1)).to(dtype)
         causal_mask = causal_mask[None, None, :, :].expand(batch_size, 1, -1, -1)
         if attention_mask is not None:
             causal_mask = causal_mask.clone()  # copy to contiguous memory for in-place edit
             mask_length = attention_mask.shape[-1]
-            padding_mask = causal_mask[:, :, :, :mask_length] + attention_mask[:, None, None, :]
+            padding_mask = causal_mask[:, :, :, :mask_length] + attention_mask[:, None, None, :].to(dtype)
             padding_mask = padding_mask == 0
             causal_mask[:, :, :, :mask_length] = causal_mask[:, :, :, :mask_length].masked_fill(
                 padding_mask, min_dtype
@@ -205,11 +205,14 @@ class LlamaRotaryEmbedding(nn.Module):
         # Force float32 (see https://github.com/huggingface/transformers/pull/29285)
         device_type = x.device.type
         device_type = device_type if isinstance(device_type, str) and device_type != "mps" else "cpu"
-        with torch.autocast(device_type=device_type, enabled=False):
-            freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
+        with torch.autocast(device_type="cpu", enabled=False):
+            freqs = (inv_freq_expanded.cpu().float() @ position_ids_expanded.cpu().float()).transpose(1, 2)
             emb = torch.cat((freqs, freqs), dim=-1)
             cos = emb.cos()
             sin = emb.sin()
+
+        cos = cos.to(inv_freq_expanded.device)
+        sin = sin.to(inv_freq_expanded.device)
 
         # Advanced RoPE types (e.g. yarn) apply a post-processing scaling factor, equivalent to scaling attention
         cos = cos * self.attention_scaling
@@ -1249,9 +1252,9 @@ class LlamaForCausalLM(LlamaPreTrainedModel):
         # Exception 2: some generation methods do special slicing of input_ids, so we don't need to do it here
         if past_key_values is not None:
             if inputs_embeds is not None:  # Exception 1
-                input_ids = input_ids[:, -cache_position.shape[0] :]
+                input_ids = input_ids.cpu()[:, -cache_position.shape[0] :].to(input_ids.device)
             elif input_ids.shape[1] != cache_position.shape[0]:  # Default case (the "else", a no op, is Exception 2)
-                input_ids = input_ids[:, cache_position]
+                input_ids = input_ids.cpu()[:, cache_position.cpu()].to(input_ids.device)
 
         if attention_mask is not None and position_ids is None:
             # create position_ids on the fly for batch generation

@@ -499,7 +499,7 @@ class EosTokenCriteria(StoppingCriteria):
                 .squeeze()
             )
         else:
-            is_done = torch.isin(input_ids[:, -1], self.eos_token_id)
+            is_done = torch.isin(input_ids[:, -1].cpu(), self.eos_token_id.cpu()).to(input_ids.device)
         return is_done
 
 
@@ -508,7 +508,8 @@ class StoppingCriteriaList(list):
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> torch.BoolTensor:
         is_done = torch.full((input_ids.shape[0],), False, device=input_ids.device, dtype=torch.bool)
         for criteria in self:
-            is_done = is_done | criteria(input_ids, scores, **kwargs)
+            is_done = is_done.cpu() | criteria(input_ids, scores, **kwargs).cpu()
+            is_done = is_done.to(input_ids.device)
         return is_done
 
     @property
