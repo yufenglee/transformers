@@ -464,7 +464,7 @@ class TopPLogitsWarper(LogitsWarper):
         sorted_logits, sorted_indices = torch.sort(scores.cpu(), descending=False)
         sorted_logits = sorted_logits.to(input_ids.device)
         sorted_indices = sorted_indices.to(input_ids.device)
-        cumulative_probs = sorted_logits.cpu().softmax(dim=-1).cumsum(dim=-1).to(input_ids.device)
+        cumulative_probs = sorted_logits.cpu().softmax(dim=-1).to(input_ids.device).cumsum(dim=-1)
 
         # Remove tokens with cumulative top_p above the threshold (token with 0 are kept)
         sorted_indices_to_remove = cumulative_probs <= (1 - self.top_p)

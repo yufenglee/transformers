@@ -1567,13 +1567,13 @@ class GenerationMixin:
         #                 "eos token. As a consequence, you may observe unexpected behavior. Please pass your input's "
         #                 "`attention_mask` to obtain reliable results."
         #             )
-        #     #if eos_token_tensor is not None and (
-        #     #    torch.is_floating_point(eos_token_tensor) or (eos_token_tensor < 0).any()
-        #     #):
-        #     #    logger.warning(
-        #     #        f"`eos_token_id` should consist of positive integers, but is {eos_token_tensor}. Your generation "
-        #     #        "will not stop until the maximum length is reached. Depending on other flags, it may even crash."
-        #     #    )
+        #     if eos_token_tensor is not None and (
+        #         torch.is_floating_point(eos_token_tensor) or (eos_token_tensor < 0).any()
+        #     ):
+        #         logger.warning(
+        #             f"`eos_token_id` should consist of positive integers, but is {eos_token_tensor}. Your generation "
+        #             "will not stop until the maximum length is reached. Depending on other flags, it may even crash."
+        #         )
 
         # Update generation config with the updated special tokens tensors
         # NOTE: this must be written into a different attribute name than the one holding the original special tokens
