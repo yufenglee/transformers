@@ -507,11 +507,10 @@ class EosTokenCriteria(StoppingCriteria):
 class StoppingCriteriaList(list):
     @add_start_docstrings(STOPPING_CRITERIA_INPUTS_DOCSTRING)
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> torch.BoolTensor:
-        is_done = torch.full((input_ids.shape[0],), False, device=input_ids.device, dtype=torch.bool)
+        is_done = torch.full((input_ids.shape[0],), 0, device=input_ids.device, dtype=torch.float32)
         for criteria in self:
-            is_done = is_done.cpu() | criteria(input_ids, scores, **kwargs).cpu()
-            is_done = is_done.to(input_ids.device)
-        return is_done
+            is_done = is_done + criteria(input_ids, scores, **kwargs).to(torch.float32)
+        return is_done.to(torch.bool)
 
     @property
     def max_length(self) -> Optional[int]:
