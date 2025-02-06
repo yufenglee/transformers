@@ -3015,16 +3015,12 @@ class GenerationMixin:
 
             # token selection
             if do_sample:
-                probs = nn.functional.softmax(next_token_scores.cpu(), dim=-1).to(next_token_scores.device)
+                probs = nn.functional.softmax(next_token_scores.to(torch.bfloat16), dim=-1)
                 # TODO (joao): this OP throws "skipping cudagraphs due to ['incompatible ops']", find solution
                 next_tokens = torch.multinomial(probs, num_samples=1).squeeze(1)
             else:
-                # next_tokens = torch.argmax(next_token_scores, dim=-1)
-                # argmax only supports 1D
-                # topk only returns indices with int32
-                # cast doesn't support int32->int64
-                next_tokens = torch.topk(next_token_scores, k=1, dim=-1).indices.squeeze(-1).cpu().to(torch.long).to(next_token_scores.device)
-
+                next_tokens = torch.argmax(next_token_scores, dim=-1)
+                
             # finished sentences should have their next token be a padding token
             if has_eos_stopping_criteria:
                 next_tokens = next_tokens * unfinished_sequences + pad_token_id * (1 - unfinished_sequences)
@@ -3039,8 +3035,8 @@ class GenerationMixin:
                 is_encoder_decoder=self.config.is_encoder_decoder,
             )
 
-            unfinished_sequences = unfinished_sequences.cpu() & ~stopping_criteria(input_ids.cpu(), scores.cpu() if scores else scores)
-            unfinished_sequences = unfinished_sequences.to(input_ids.device)
+            #unfinished_sequences = unfinished_sequences.cpu() & ~stopping_criteria(input_ids.cpu(), scores.cpu() if scores else scores)
+            unfinished_sequences = unfinished_sequences * ((1 - stopping_criteria(input_ids, scores).to(torch.int32))).to(torch.int64)
             this_peer_finished = unfinished_sequences.max() == 0
             cur_len += 1
 

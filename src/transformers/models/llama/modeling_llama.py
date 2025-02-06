@@ -1250,7 +1250,15 @@ class LlamaForCausalLM(LlamaPreTrainedModel):
             if inputs_embeds is not None:  # Exception 1
                 input_ids = input_ids.cpu()[:, -cache_position.shape[0] :].to(input_ids.device)
             elif input_ids.shape[1] != cache_position.shape[0]:  # Default case (the "else", a no op, is Exception 2)
-                input_ids = input_ids.cpu()[:, cache_position.cpu()].to(input_ids.device)
+                assert input_ids.size(0) == 1
+                input_ids = input_ids.reshape(input_ids.size(-1), 1)
+                from torch_maia import ALL_CSRAM_MESH, shard_within_chip
+                from torch.distributed._tensor import Replicate, Shard
+                with shard_within_chip(ALL_CSRAM_MESH, [Replicate()]):
+                    tmp = torch.empty((cache_position.size(0),1), dtype=input_ids.dtype, device='maia')
+                torch.index_select(input_ids, 0, cache_position, out=tmp)
+                input_ids = torch.empty((cache_position.size(0),1), dtype=input_ids.dtype, device='maia')
+                input_ids.copy_(tmp)
 
         if attention_mask is not None and position_ids is None:
             # create position_ids on the fly for batch generation
